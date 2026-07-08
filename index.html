@@ -264,6 +264,31 @@
     .stamp-slot-del{position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:#ef4444;color:white;font-size:11px;display:flex;align-items:center;justify-content:center;font-weight:bold;z-index:1;}
     .stamp-empty{text-align:center;color:var(--sub);font-size:13px;padding:8px 0 4px;grid-column:1/-1;}
 
+    /* ── color picker ── */
+    .color-picker-label{font-size:12px;font-weight:bold;color:var(--sub);margin-bottom:8px;text-align:left;}
+    .color-picker-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px;}
+    .color-dot{width:30px;height:30px;border-radius:50%;border:3px solid transparent;cursor:pointer;transition:transform .15s,border-color .15s;-webkit-tap-highlight-color:transparent;box-shadow:0 2px 6px rgba(0,0,0,.15);}
+    .color-dot.selected{border-color:var(--title);transform:scale(1.2);}
+
+    /* ── graph ── */
+    .graph-toggle{display:flex;background:var(--border);border-radius:10px;padding:3px;width:100%;margin-bottom:14px;}
+    .graph-toggle-btn{flex:1;padding:9px;border:none;border-radius:8px;font-size:15px;font-weight:bold;cursor:pointer;color:var(--sub);background:none;transition:all .2s;-webkit-tap-highlight-color:transparent;}
+    .graph-toggle-btn.active{background:var(--card-bg);color:var(--title);box-shadow:0 1px 4px rgba(0,0,0,.1);}
+    .graph-nav{display:flex;align-items:center;justify-content:space-between;width:100%;margin-bottom:10px;}
+    .graph-nav-label{font-size:15px;font-weight:bold;color:var(--title);}
+    .graph-nav-btn{background:none;border:none;font-size:22px;color:var(--p1);cursor:pointer;padding:4px 14px;-webkit-tap-highlight-color:transparent;}
+    .graph-nav-btn:disabled{opacity:.25;cursor:not-allowed;}
+    .chart-card{width:100%;background:var(--card-bg);border-radius:16px;padding:16px;box-shadow:0 2px 12px rgba(0,0,0,.07);margin-bottom:14px;overflow:hidden;}
+    .chart-total{font-size:12px;color:var(--sub);text-align:right;margin-bottom:6px;font-weight:bold;}
+    .chart-empty{text-align:center;color:var(--sub);padding:36px 0;font-size:14px;}
+    .graph-legend{width:100%;background:var(--card-bg);border-radius:14px;padding:14px 16px;box-shadow:0 2px 8px rgba(0,0,0,.06);}
+    .legend-title{font-size:12px;font-weight:bold;color:var(--sub);margin-bottom:10px;}
+    .legend-item{display:flex;align-items:center;gap:10px;padding:7px 0;}
+    .legend-item:not(:last-child){border-bottom:1px solid var(--border);}
+    .legend-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;}
+    .legend-subject{flex:1;font-size:14px;color:var(--title);}
+    .legend-time{font-size:12px;font-weight:bold;color:var(--sub);}
+
     /* ── timer / study log ── */
     .timer-display-card{width:100%;background:var(--card-bg);border-radius:20px;padding:28px 20px;text-align:center;box-shadow:0 4px 16px rgba(0,0,0,.08);margin-bottom:20px;}
     .timer-subject-label{font-size:13px;font-weight:bold;color:var(--sub);margin-bottom:8px;text-align:left;}
@@ -467,10 +492,13 @@
   <div class="s-header">
     <button class="back-btn" onclick="goHome()">←</button>
     <span class="s-title">学習タイマー</span>
+    <button class="s-action" onclick="goGraph()">グラフ</button>
   </div>
   <div class="timer-display-card">
     <div class="timer-subject-label">勉強内容</div>
-    <input type="text" class="f-input" id="timer-subject" placeholder="例: 英単語, 数学, リーディング..." style="margin-bottom:20px">
+    <input type="text" class="f-input" id="timer-subject" placeholder="例: 英単語, 数学, リーディング..." style="margin-bottom:14px">
+    <div class="color-picker-label">カラー</div>
+    <div class="color-picker-row" id="timer-color-row"></div>
     <div class="timer-digits" id="timer-digits">00:00:00</div>
     <div class="timer-btns">
       <button class="timer-btn-start" id="timer-start-btn" onclick="toggleTimer()">▶ 開始</button>
@@ -483,7 +511,32 @@
   </div>
 </div>
 
-<!-- ⑧ Doc Add -->
+<!-- ⑧ Graph -->
+<div id="graph-screen" class="screen">
+  <div class="s-header">
+    <button class="back-btn" onclick="goTimer()">←</button>
+    <span class="s-title">学習グラフ</span>
+  </div>
+  <div class="graph-toggle">
+    <button class="graph-toggle-btn active" id="gtab-week"  onclick="setGraphMode('week')">週</button>
+    <button class="graph-toggle-btn"        id="gtab-month" onclick="setGraphMode('month')">月</button>
+  </div>
+  <div class="graph-nav">
+    <button class="graph-nav-btn" onclick="graphPrev()">＜</button>
+    <span class="graph-nav-label" id="graph-nav-label"></span>
+    <button class="graph-nav-btn" id="graph-next-btn" onclick="graphNext()">＞</button>
+  </div>
+  <div class="chart-card">
+    <div class="chart-total" id="graph-total"></div>
+    <div id="graph-chart"></div>
+  </div>
+  <div class="graph-legend">
+    <div class="legend-title">科目・内容</div>
+    <div id="graph-legend-list"></div>
+  </div>
+</div>
+
+<!-- ⑨ Doc Add -->
 <div id="doc-add-screen" class="screen">
   <div class="s-header">
     <button class="back-btn" onclick="goHome()">←</button>
@@ -773,6 +826,7 @@ function globalBack() {
     case 'doc-view-screen':   goDocDetail(currentDocId); break;
     case 'stamp-screen':      goHome(); break;
     case 'timer-screen':      goHome(); break;
+    case 'graph-screen':      goTimer(); break;
   }
 }
 function goHome()    { renderHome(); showScreen('home-screen'); }
@@ -1247,7 +1301,10 @@ function updateStampHomeSub() {
 
 /* ── Study Timer ── */
 const STUDY_LOG_KEY = 'tc-study-log';
+const STUDY_COLORS = ['#ef4444','#f97316','#eab308','#22c55e','#06b6d4','#3b82f6','#8b5cf6','#ec4899'];
 let timerInterval = null, timerStartTs = null, timerElapsed = 0, timerRunning = false;
+let timerColor = STUDY_COLORS[0];
+let graphMode = 'week', graphOffset = 0;
 
 function loadStudyLog() {
   try { return JSON.parse(localStorage.getItem(STUDY_LOG_KEY) || '[]'); } catch { return []; }
@@ -1259,8 +1316,18 @@ function goTimer() {
   showScreen('timer-screen');
 }
 
+function renderColorPicker() {
+  const el = document.getElementById('timer-color-row');
+  if (!el) return;
+  el.innerHTML = STUDY_COLORS.map(c =>
+    `<div class="color-dot${c===timerColor?' selected':''}" style="background:${c}" onclick="selectTimerColor('${c}')"></div>`
+  ).join('');
+}
+function selectTimerColor(c) { timerColor = c; renderColorPicker(); }
+
 function renderTimerScreen() {
   updateTimerDisplay();
+  renderColorPicker();
   renderStudyLogList();
 }
 
@@ -1305,14 +1372,16 @@ function finishTimer() {
   log.unshift({
     id: uid(),
     subject,
+    color: timerColor,
     duration: total,
     date: toDateStr(new Date()),
     startTime: new Date(Date.now() - total * 1000).toISOString()
   });
   persistStudyLog(log);
 
-  timerElapsed = 0; timerStartTs = null;
+  timerElapsed = 0; timerStartTs = null; timerColor = STUDY_COLORS[0];
   updateTimerDisplay();
+  renderColorPicker();
   document.getElementById('timer-start-btn').textContent = '▶ 開始';
   document.getElementById('timer-stop-btn').style.display = 'none';
   document.getElementById('timer-subject').value = '';
@@ -1381,6 +1450,141 @@ function updateTimerHomeSub() {
     const totalSec = todayEntries.reduce((s, e) => s + e.duration, 0);
     el.textContent = `今日 ${fmtDuration(totalSec)} 学習済み`;
   }
+}
+
+/* ── Study Graph ── */
+function goGraph() {
+  graphMode = 'week'; graphOffset = 0;
+  document.getElementById('gtab-week').classList.add('active');
+  document.getElementById('gtab-month').classList.remove('active');
+  renderGraph();
+  showScreen('graph-screen');
+}
+
+function setGraphMode(m) {
+  graphMode = m; graphOffset = 0;
+  document.getElementById('gtab-week').classList.toggle('active', m==='week');
+  document.getElementById('gtab-month').classList.toggle('active', m==='month');
+  renderGraph();
+}
+
+function graphPrev() { graphOffset--; renderGraph(); }
+function graphNext() { if (graphOffset < 0) { graphOffset++; renderGraph(); } }
+
+function getWeekDays() {
+  const now = new Date(), dow = now.getDay();
+  const mon = new Date(now);
+  mon.setDate(now.getDate() - (dow===0?6:dow-1) + graphOffset*7);
+  return Array.from({length:7}, (_,i) => {
+    const d = new Date(mon); d.setDate(mon.getDate()+i); return toDateStr(d);
+  });
+}
+
+function getMonthDays() {
+  const now = new Date();
+  const base = new Date(now.getFullYear(), now.getMonth()+graphOffset, 1);
+  const last = new Date(base.getFullYear(), base.getMonth()+1, 0).getDate();
+  return Array.from({length:last}, (_,i) =>
+    toDateStr(new Date(base.getFullYear(), base.getMonth(), i+1))
+  );
+}
+
+function renderGraph() {
+  const log = loadStudyLog();
+  const days = graphMode==='week' ? getWeekDays() : getMonthDays();
+  const todayStr = toDateStr(new Date());
+  const isWeek = graphMode==='week';
+
+  /* nav label */
+  const navEl = document.getElementById('graph-nav-label');
+  const nextBtn = document.getElementById('graph-next-btn');
+  if (isWeek) {
+    const d0=new Date(days[0]+'T12:00:00'), d6=new Date(days[6]+'T12:00:00');
+    navEl.textContent=`${d0.getMonth()+1}/${d0.getDate()} 〜 ${d6.getMonth()+1}/${d6.getDate()}`;
+  } else {
+    const d=new Date(days[0]+'T12:00:00');
+    navEl.textContent=`${d.getFullYear()}年 ${d.getMonth()+1}月`;
+  }
+  nextBtn.disabled = graphOffset >= 0;
+
+  /* group by date */
+  const byDate = {};
+  days.forEach(d => byDate[d]=[]);
+  log.forEach(e => { if (byDate[e.date]!==undefined) byDate[e.date].push(e); });
+
+  /* max seconds per day */
+  let maxSec = 0;
+  days.forEach(d => { const s=byDate[d].reduce((a,e)=>a+e.duration,0); if(s>maxSec)maxSec=s; });
+
+  /* legend */
+  const legendMap = {};
+  days.forEach(date => byDate[date].forEach(e => {
+    const col=e.color||'#94a3b8', key=col+'|||'+e.subject;
+    legendMap[key]=(legendMap[key]||0)+e.duration;
+  }));
+  const periodTotal=Object.values(legendMap).reduce((a,v)=>a+v,0);
+  document.getElementById('graph-total').textContent=periodTotal?`合計 ${fmtDuration(periodTotal)}`:'';
+  const legendEl=document.getElementById('graph-legend-list');
+  if(!Object.keys(legendMap).length){
+    legendEl.innerHTML='<div style="color:var(--sub);font-size:13px;padding:6px 0">この期間の記録がありません</div>';
+  } else {
+    legendEl.innerHTML=Object.entries(legendMap).sort((a,b)=>b[1]-a[1]).map(([key,sec])=>{
+      const [col,subj]=key.split('|||');
+      return `<div class="legend-item"><div class="legend-dot" style="background:${col}"></div><span class="legend-subject">${esc(subj)}</span><span class="legend-time">${fmtDuration(sec)}</span></div>`;
+    }).join('');
+  }
+
+  const chartEl=document.getElementById('graph-chart');
+  if(maxSec===0){ chartEl.innerHTML='<div class="chart-empty">📊 この期間の記録がありません</div>'; return; }
+
+  /* y-axis max (nice units) */
+  const mh=maxSec/3600;
+  const yMax=mh<=0.5?0.5:mh<=1?1:mh<=2?2:mh<=3?3:mh<=4?4:mh<=6?6:8;
+  const yMaxSec=yMax*3600;
+
+  /* SVG dimensions */
+  const BAR_W=isWeek?44:10, GAP=isWeek?9:2;
+  const LEFT=34, TOP=8, CH=160, BOT=26;
+  const svgW=LEFT+days.length*(BAR_W+GAP);
+  const svgH=TOP+CH+BOT;
+  const DOW_JP=['日','月','火','水','木','金','土'];
+
+  let grid='', rects='', xlbls='';
+
+  /* y gridlines */
+  [0,1,2,3,4].forEach(i=>{
+    const sec=yMaxSec*i/4, y=TOP+CH-Math.round(CH*i/4);
+    const lbl=sec>=3600?`${sec/3600}h`:`${Math.round(sec/60)}m`;
+    grid+=`<line x1="${LEFT}" y1="${y}" x2="${svgW}" y2="${y}" stroke="currentColor" stroke-width="0.5" opacity="0.15"/>`;
+    grid+=`<text x="${LEFT-3}" y="${y+3}" text-anchor="end" font-size="8" fill="currentColor" opacity="0.4">${lbl}</text>`;
+  });
+
+  /* bars + x labels */
+  days.forEach((date,i)=>{
+    const x=LEFT+i*(BAR_W+GAP);
+    if(date===todayStr) rects+=`<rect x="${x}" y="${TOP}" width="${BAR_W}" height="${CH}" fill="var(--p1)" opacity="0.07" rx="2"/>`;
+    let bot=TOP+CH;
+    byDate[date].forEach(e=>{
+      const h=Math.max(2,Math.round((e.duration/yMaxSec)*CH));
+      bot-=h;
+      rects+=`<rect x="${x}" y="${bot}" width="${BAR_W}" height="${h}" fill="${e.color||'#94a3b8'}" rx="2"/>`;
+    });
+    const d=new Date(date+'T12:00:00');
+    let lbl='';
+    if(isWeek){ lbl=DOW_JP[d.getDay()]; }
+    else{ const day=d.getDate(); lbl=(day===1||day===8||day===15||day===22||day===29||i===days.length-1)?String(day):''; }
+    if(lbl){
+      const isTd=date===todayStr, isSun=d.getDay()===0, isSat=d.getDay()===6;
+      const col=isTd?'var(--p1)':isSun?'#ef4444':isSat?'#3b82f6':'currentColor';
+      xlbls+=`<text x="${x+BAR_W/2}" y="${TOP+CH+18}" text-anchor="middle" font-size="${isWeek?10:9}" fill="${col}" opacity="${isTd?1:0.55}" font-weight="${isTd?'bold':'normal'}">${lbl}</text>`;
+    }
+  });
+
+  chartEl.innerHTML=`<div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+    <svg viewBox="0 0 ${svgW} ${svgH}" width="${svgW}" height="${svgH}" style="display:block">
+      ${grid}${rects}${xlbls}
+    </svg>
+  </div>`;
 }
 
 /* ── Doc Add ── */
