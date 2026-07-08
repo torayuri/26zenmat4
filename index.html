@@ -840,26 +840,80 @@ async function doLogout() {
   showScreen('home-screen');
 }
 
-async function onSignIn(user) {
-  let cloudDecks = null;
+async function loadCloudData(user) {
+  let cloud = null;
   try {
     const doc = await db.collection('users').doc(user.uid).get();
-    if (doc.exists) cloudDecks = doc.data().decks || [];
-  } catch(e) { console.error('Firestore load error:', e); }
+    if (doc.exists) cloud = doc.data();
+  } catch(e) { console.error('Firestore load error:', e); return false; }
 
-  const local = loadLocalDecks();
-  if (cloudDecks !== null && cloudDecks.length > 0) {
-    deckCache = cloudDecks;
-    localStorage.setItem(KEY, JSON.stringify(cloudDecks));
-  } else if (local.length > 0) {
-    deckCache = local;
-    try { await db.collection('users').doc(user.uid).set({ decks: local }); } catch {}
+  const ref = db.collection('users').doc(user.uid);
+
+  /* ── Decks ── */
+  const localDecks = loadLocalDecks();
+  if (cloud?.decks?.length > 0) {
+    deckCache = cloud.decks;
+    localStorage.setItem(KEY, JSON.stringify(cloud.decks));
+  } else if (localDecks.length > 0) {
+    deckCache = localDecks;
+    ref.set({ decks: localDecks }, { merge: true }).catch(()=>{});
+  } else { deckCache = []; }
+
+  /* ── Stamps ── */
+  if (cloud?.stamps && Object.keys(cloud.stamps).length > 0) {
+    const merged = { ...loadStamps(), ...cloud.stamps };
+    localStorage.setItem(STAMP_KEY, JSON.stringify(merged));
   } else {
-    deckCache = [];
+    const s = loadStamps();
+    if (Object.keys(s).length > 0) ref.set({ stamps: s }, { merge: true }).catch(()=>{});
   }
+
+  /* ── Stamp images ── */
+  if (cloud?.stampImgs?.length > 0) {
+    localStorage.setItem(STAMP_IMG_KEY, JSON.stringify(cloud.stampImgs));
+  } else {
+    const imgs = loadStampImgs();
+    if (imgs.length > 0) ref.set({ stampImgs: imgs }, { merge: true }).catch(()=>{});
+  }
+
+  /* ── Study log ── */
+  if (cloud?.studyLog?.length > 0) {
+    const localLog = loadStudyLog();
+    const ids = new Set(cloud.studyLog.map(e => e.id));
+    const merged = [...cloud.studyLog, ...localLog.filter(e => !ids.has(e.id))];
+    merged.sort((a, b) => new Date(b.startTime||0) - new Date(a.startTime||0));
+    localStorage.setItem(STUDY_LOG_KEY, JSON.stringify(merged));
+  } else {
+    const log = loadStudyLog();
+    if (log.length > 0) ref.set({ studyLog: log }, { merge: true }).catch(()=>{});
+  }
+
+  return true;
+}
+
+async function onSignIn(user) {
+  await loadCloudData(user);
   renderUserArea();
   renderHome();
+  updateStampHomeSub();
+  updateTimerHomeSub();
   showScreen('home-screen');
+}
+
+async function doSync() {
+  if (!db || !currentUser) return;
+  const btn = document.getElementById('sync-manual-btn');
+  if (btn) { btn.textContent = '同期中…'; btn.disabled = true; }
+  const ok = await loadCloudData(currentUser);
+  renderHome();
+  updateStampHomeSub();
+  updateTimerHomeSub();
+  if (document.getElementById('stamp-screen')?.classList.contains('active')) renderStampCal();
+  if (document.getElementById('timer-screen')?.classList.contains('active')) renderStudyLogList();
+  if (btn) {
+    btn.textContent = ok ? '✓ 完了' : '失敗';
+    setTimeout(() => { btn.textContent = '☁ 同期'; btn.disabled = false; }, 1800);
+  }
 }
 
 /* ── Storage ── */
@@ -872,7 +926,7 @@ async function saveDecks(d) {
   deckCache = d;
   try { localStorage.setItem(KEY, JSON.stringify(d)); } catch {}
   if (db && currentUser) {
-    try { await db.collection('users').doc(currentUser.uid).set({ decks: d }); }
+    try { await db.collection('users').doc(currentUser.uid).set({ decks: d }, { merge: true }); }
     catch(e) { console.error('Firestore save error:', e); }
   }
 }
@@ -944,7 +998,7 @@ function renderUserArea() {
   const el = document.getElementById('user-area');
   if (!FB_ON) { el.innerHTML = ''; return; }
   if (currentUser) {
-    el.innerHTML = `<div class="user-bar"><span class="user-name">👤 ${esc(email2u(currentUser.email))} でログイン中</span><button class="user-logout" onclick="doLogout()">ログアウト</button></div>`;
+    el.innerHTML = `<div class="user-bar"><span class="user-name">👤 ${esc(email2u(currentUser.email))}</span><div style="display:flex;gap:4px"><button id="sync-manual-btn" class="user-logout" onclick="doSync()">☁ 同期</button><button class="user-logout" onclick="doLogout()">ログアウト</button></div></div>`;
   } else {
     el.innerHTML = `<button class="sync-btn" onclick="openAuth()">🔑 ログインしてデバイス間で同期</button>`;
   }
@@ -1295,11 +1349,17 @@ let stampYear, stampMonth;
 function loadStamps() {
   try { return JSON.parse(localStorage.getItem(STAMP_KEY) || '{}'); } catch { return {}; }
 }
-function saveStamps(o) { localStorage.setItem(STAMP_KEY, JSON.stringify(o)); }
+function saveStamps(o) {
+  localStorage.setItem(STAMP_KEY, JSON.stringify(o));
+  if (db && currentUser) db.collection('users').doc(currentUser.uid).set({ stamps: o }, { merge: true }).catch(()=>{});
+}
 function loadStampImgs() {
   try { return JSON.parse(localStorage.getItem(STAMP_IMG_KEY) || '[]'); } catch { return []; }
 }
-function saveStampImgs(imgs) { localStorage.setItem(STAMP_IMG_KEY, JSON.stringify(imgs)); }
+function saveStampImgs(imgs) {
+  localStorage.setItem(STAMP_IMG_KEY, JSON.stringify(imgs));
+  if (db && currentUser) db.collection('users').doc(currentUser.uid).set({ stampImgs: imgs }, { merge: true }).catch(()=>{});
+}
 function toDateStr(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
 
 function goStamp() {
@@ -1398,7 +1458,10 @@ let graphMode = 'week', graphOffset = 0;
 function loadStudyLog() {
   try { return JSON.parse(localStorage.getItem(STUDY_LOG_KEY) || '[]'); } catch { return []; }
 }
-function persistStudyLog(log) { localStorage.setItem(STUDY_LOG_KEY, JSON.stringify(log)); }
+function persistStudyLog(log) {
+  localStorage.setItem(STUDY_LOG_KEY, JSON.stringify(log));
+  if (db && currentUser) db.collection('users').doc(currentUser.uid).set({ studyLog: log }, { merge: true }).catch(()=>{});
+}
 
 function goTimer() {
   renderTimerScreen();
