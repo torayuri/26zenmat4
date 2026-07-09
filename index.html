@@ -231,6 +231,15 @@
     /* ── stamp ── */
     .stamp-home-card{width:100%;padding:14px 18px;background:var(--card-bg);border-radius:14px;border-left:4px solid var(--s1);display:flex;align-items:center;gap:12px;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.06);margin-bottom:16px;-webkit-tap-highlight-color:transparent;transition:opacity .15s;}
     .stamp-home-card:active{opacity:.7;}
+    .community-card{width:100%;background:var(--card-bg);border-radius:14px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 10px rgba(0,0,0,.06);margin-bottom:10px;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:opacity .15s;}
+    .community-card:active{opacity:.7;}
+    .community-name{font-size:15px;font-weight:bold;color:var(--title);}
+    .community-stats{display:flex;gap:14px;font-size:12px;color:var(--sub);margin-top:3px;}
+    .share-row{width:100%;display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:var(--card-bg);border-radius:14px;margin-bottom:14px;box-shadow:0 2px 10px rgba(0,0,0,.06);}
+    .toggle-sw{width:44px;height:26px;border-radius:13px;background:var(--border);border:none;cursor:pointer;position:relative;transition:background .2s;flex-shrink:0;-webkit-tap-highlight-color:transparent;}
+    .toggle-sw.on{background:var(--p1);}
+    .toggle-sw::after{content:'';position:absolute;width:20px;height:20px;border-radius:50%;background:white;top:3px;left:3px;transition:left .2s;}
+    .toggle-sw.on::after{left:21px;}
     .stamp-home-icon{font-size:28px;}
     .stamp-home-info{flex:1;}
     .stamp-home-title{font-size:15px;font-weight:bold;color:var(--title);}
@@ -404,6 +413,14 @@
     </div>
     <div style="font-size:20px;color:var(--sub)">›</div>
   </div>
+  <div class="stamp-home-card" onclick="goCommunity()" style="border-left-color:#9f7aea">
+    <div class="stamp-home-icon">👥</div>
+    <div class="stamp-home-info">
+      <div class="stamp-home-title">みんなの学習</div>
+      <div class="stamp-home-sub">タップして見る</div>
+    </div>
+    <div style="font-size:20px;color:var(--sub)">›</div>
+  </div>
   <div class="home-tabs">
     <button class="home-tab active" id="htab-flashcard" onclick="setHomeTab('flashcard')">単語帳</button>
     <button class="home-tab" id="htab-document" onclick="setHomeTab('document')">資料</button>
@@ -522,17 +539,34 @@
       <button class="timer-btn-stop" id="timer-stop-btn" style="display:none" onclick="finishTimer()">■ 終了して保存</button>
     </div>
   </div>
+  <div class="share-row">
+    <div>
+      <div style="font-size:14px;font-weight:bold;color:var(--title)">学習時間を公開する</div>
+      <div style="font-size:11px;color:var(--sub);margin-top:2px">オンにすると他のユーザーに見えます</div>
+    </div>
+    <button class="toggle-sw" id="share-toggle-btn" onclick="toggleSharing()"></button>
+  </div>
   <div class="study-log-section">
     <div class="study-log-title">学習履歴</div>
     <div id="study-log-list"></div>
   </div>
 </div>
 
-<!-- ⑧ Graph -->
+<!-- ⑧ Community -->
+<div id="community-screen" class="screen">
+  <div class="s-header">
+    <button class="back-btn" onclick="goHome()">←</button>
+    <span class="s-title">みんなの学習</span>
+    <button class="s-action" onclick="loadCommunity()">更新</button>
+  </div>
+  <div id="community-list"></div>
+</div>
+
+<!-- ⑨ Graph -->
 <div id="graph-screen" class="screen">
   <div class="s-header">
-    <button class="back-btn" onclick="goTimer()">←</button>
-    <span class="s-title">学習グラフ</span>
+    <button class="back-btn" onclick="graphBack()">←</button>
+    <span class="s-title" id="graph-screen-title">学習グラフ</span>
   </div>
   <div class="graph-toggle">
     <button class="graph-toggle-btn active" id="gtab-week"  onclick="setGraphMode('week')">週</button>
@@ -1514,6 +1548,7 @@ function loadStudyLog() {
 function persistStudyLog(log) {
   localStorage.setItem(STUDY_LOG_KEY, JSON.stringify(log));
   if (db && currentUser) db.collection('users').doc(currentUser.uid).set({ studyLog: log }, { merge: true }).catch(()=>{});
+  updatePublicStudy();
 }
 
 function goTimer() {
@@ -1534,6 +1569,7 @@ function renderTimerScreen() {
   updateTimerDisplay();
   renderColorPicker();
   renderStudyLogList();
+  updateShareToggleUI();
 }
 
 function updateTimerDisplay() {
@@ -1695,7 +1731,7 @@ function getMonthDays() {
 }
 
 function renderGraph() {
-  const log = loadStudyLog();
+  const log = communityLog !== null ? communityLog : loadStudyLog();
   const days = graphMode==='week' ? getWeekDays() : getMonthDays();
   const todayStr = toDateStr(new Date());
   const isWeek = graphMode==='week';
@@ -1790,6 +1826,88 @@ function renderGraph() {
       ${grid}${rects}${xlbls}
     </svg>
   </div>`;
+}
+
+/* ── Community ── */
+const SHARING_KEY = 'tc-sharing';
+let communityLog = null, communityUsername = null, communityData = {};
+
+function isSharing() { return localStorage.getItem(SHARING_KEY) === '1'; }
+function toggleSharing() {
+  const on = !isSharing();
+  localStorage.setItem(SHARING_KEY, on ? '1' : '0');
+  updateShareToggleUI();
+  if (on) updatePublicStudy();
+  else if (db && currentUser) db.collection('public_study').doc(currentUser.uid).delete().catch(()=>{});
+}
+function updateShareToggleUI() {
+  const btn = document.getElementById('share-toggle-btn');
+  if (btn) btn.classList.toggle('on', isSharing());
+}
+function updatePublicStudy() {
+  if (!db || !currentUser || !isSharing()) return;
+  db.collection('public_study').doc(currentUser.uid).set({
+    username: email2u(currentUser.email), studyLog: loadStudyLog(), updatedAt: Date.now()
+  }).catch(()=>{});
+}
+async function goCommunity() {
+  showScreen('community-screen');
+  loadCommunity();
+}
+async function loadCommunity() {
+  const el = document.getElementById('community-list');
+  if (!db || !currentUser) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">🔒</div><div>ログインが必要です</div></div>'; return;
+  }
+  el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--sub)">読み込み中...</div>';
+  try {
+    const snap = await db.collection('public_study').get();
+    const users = snap.docs.map(d => ({ uid: d.id, ...d.data() }))
+      .sort((a, b) => (b.updatedAt||0) - (a.updatedAt||0));
+    communityData = {};
+    users.forEach(u => { communityData[u.uid] = u; });
+    if (!users.length) {
+      el.innerHTML = '<div class="empty-state"><div class="empty-icon">👥</div><div>まだ公開しているユーザーがいません</div></div>'; return;
+    }
+    const now = new Date(), todayStr = toDateStr(now);
+    const ws = new Date(now); ws.setDate(now.getDate() - (now.getDay()===0?6:now.getDay()-1));
+    const weekStartStr = toDateStr(ws);
+    el.innerHTML = users.map(u => {
+      const log = u.studyLog || [];
+      const todaySec  = log.filter(e => e.date === todayStr).reduce((s,e) => s+(e.duration||0), 0);
+      const weekSec   = log.filter(e => e.date >= weekStartStr).reduce((s,e) => s+(e.duration||0), 0);
+      const isSelf = u.uid === currentUser?.uid;
+      return `<div class="community-card" onclick="viewUserStudy('${u.uid}')">
+        <div style="flex:1">
+          <div class="community-name">👤 ${esc(u.username)}${isSelf?' (自分)':''}</div>
+          <div class="community-stats"><span>今日 ${fmtDuration(todaySec)}</span><span>今週 ${fmtDuration(weekSec)}</span></div>
+        </div>
+        <div style="font-size:18px;color:var(--sub)">›</div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">⚠️</div><div>読み込みに失敗しました</div></div>';
+  }
+}
+function viewUserStudy(uid) {
+  const u = communityData[uid]; if (!u) return;
+  communityLog = u.studyLog || [];
+  communityUsername = u.username;
+  graphMode = 'week'; graphOffset = 0;
+  document.getElementById('graph-screen-title').textContent = communityUsername + 'の学習';
+  document.getElementById('gtab-week').classList.add('active');
+  document.getElementById('gtab-month').classList.remove('active');
+  renderGraph();
+  showScreen('graph-screen');
+}
+function graphBack() {
+  if (communityLog !== null) {
+    communityLog = null; communityUsername = null;
+    document.getElementById('graph-screen-title').textContent = '学習グラフ';
+    showScreen('community-screen');
+  } else {
+    goTimer();
+  }
 }
 
 /* ── Doc Add ── */
