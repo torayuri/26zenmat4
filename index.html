@@ -211,6 +211,7 @@
     .sel-color-btn:active{opacity:.7;}
     .sel-divider{width:1px;height:24px;background:var(--border);flex-shrink:0;}
     .sel-sheet-label{font-size:11px;font-weight:bold;color:var(--sub);white-space:nowrap;}
+    .txt-hl{border-radius:2px;padding:0 1px;}
     .sel-sheet-color{width:26px;height:26px;border-radius:6px;border:2px solid rgba(255,255,255,.35);cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .15s;flex-shrink:0;}
     .sel-sheet-color:active{transform:scale(.85);}
     /* ── red sheet ── */
@@ -601,6 +602,13 @@
   <button class="sel-color-btn" style="color:#66cc00" onclick="applyTextColor('#66cc00')">A</button>
   <button class="sel-color-btn" style="color:#0066cc" onclick="applyTextColor('#0066cc')">A</button>
   <button class="sel-color-btn" style="color:#c9171e" onclick="applyTextColor('#c9171e')">A</button>
+  <div class="sel-divider"></div>
+  <span class="sel-sheet-label">背景</span>
+  <button class="sel-sheet-color" style="background:#a0d8ef" onclick="applyBgColor('#a0d8ef')"></button>
+  <button class="sel-sheet-color" style="background:#fff462;border-color:rgba(0,0,0,.15)" onclick="applyBgColor('#fff462')"></button>
+  <button class="sel-sheet-color" style="background:#f5c4cf" onclick="applyBgColor('#f5c4cf')"></button>
+  <button class="sel-sheet-color" style="background:#b79fcb" onclick="applyBgColor('#b79fcb')"></button>
+  <button class="sel-sheet-color" style="background:#a4d5bd" onclick="applyBgColor('#a4d5bd')"></button>
   <div class="sel-divider"></div>
   <span class="sel-sheet-label">隠す</span>
   <button class="sel-sheet-color" style="background:#c9171e" onclick="applyRedSheet('#c9171e')"></button>
@@ -2030,6 +2038,9 @@ function wrapSavedRange(className, style) {
 
 function applyTextColor(color) {
   if (wrapSavedRange('', `color:${color}`)) { saveDocContent(); hideSelToolbar(); }
+}
+function applyBgColor(color) {
+  if (wrapSavedRange('txt-hl', `background:${color};`)) { saveDocContent(); hideSelToolbar(); }
 }
 function applyRedSheet(color) {
   const c = color || '#2d3748';
