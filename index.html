@@ -1950,9 +1950,9 @@ document.addEventListener('selectionchange', () => {
   }, 200);
 });
 
-// Hide toolbar only when tapping completely outside
+// Hide toolbar when tapping outside sel-toolbar (including inside doc-content)
 document.addEventListener('pointerdown', e => {
-  if (!e.target.closest('#sel-toolbar') && !e.target.closest('#doc-content')) {
+  if (!e.target.closest('#sel-toolbar')) {
     hideSelToolbar();
     savedRange = null;
   }
