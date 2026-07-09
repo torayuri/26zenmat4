@@ -2057,24 +2057,42 @@ function closeFmt() {
 let savedRange = null;
 let selTimer = null;
 
-// selectionchange is reliable on both Android Chrome and iOS Safari
+function finalizeSelection() {
+  const sel = window.getSelection();
+  const container = document.getElementById('doc-content');
+  if (!sel || sel.isCollapsed || !sel.rangeCount) return;
+  const range = sel.getRangeAt(0);
+  if (!container.contains(range.commonAncestorContainer)) return;
+  savedRange = range.cloneRange();
+  const rect = range.getBoundingClientRect();
+  if (typeof CSS !== 'undefined' && CSS.highlights) {
+    sel.removeAllRanges();
+    CSS.highlights.set('sel-hl', new Highlight(savedRange));
+  }
+  showSelToolbar(rect);
+}
+
+// リアルタイムでCSS ハイライトを更新。ハンドル調整後600ms で確定
 document.addEventListener('selectionchange', () => {
   if (!document.getElementById('doc-view-screen').classList.contains('active')) return;
+  const sel = window.getSelection();
+  const container = document.getElementById('doc-content');
+  if (!sel || sel.isCollapsed || !sel.rangeCount) return;
+  const range = sel.getRangeAt(0);
+  if (!container.contains(range.commonAncestorContainer)) return;
+  if (typeof CSS !== 'undefined' && CSS.highlights) {
+    CSS.highlights.set('sel-hl', new Highlight(range.cloneRange()));
+  }
   clearTimeout(selTimer);
-  selTimer = setTimeout(() => {
-    const sel = window.getSelection();
-    const container = document.getElementById('doc-content');
-    if (!sel || sel.isCollapsed || !sel.rangeCount) return;
-    const range = sel.getRangeAt(0);
-    if (!container.contains(range.commonAncestorContainer)) return;
-    savedRange = range.cloneRange();
-    const rect = range.getBoundingClientRect();
-    if (typeof CSS !== 'undefined' && CSS.highlights) {
-      sel.removeAllRanges();
-      CSS.highlights.set('sel-hl', new Highlight(savedRange));
-    }
-    showSelToolbar(rect);
-  }, 200);
+  selTimer = setTimeout(finalizeSelection, 600);
+});
+
+// 指を離したとき（直接タッチ・マウス）は100ms で即確定
+document.addEventListener('pointerup', e => {
+  if (!document.getElementById('doc-view-screen').classList.contains('active')) return;
+  if (e.target.closest('#sel-toolbar')) return;
+  clearTimeout(selTimer);
+  selTimer = setTimeout(finalizeSelection, 100);
 });
 
 // Hide toolbar when tapping outside sel-toolbar (including inside doc-content)
