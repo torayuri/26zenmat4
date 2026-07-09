@@ -944,6 +944,12 @@ async function loadCloudData(user) {
     if (localBg) ref.set({ bgImg: localBg }, { merge: true }).catch(()=>{});
   }
 
+  /* ── Sharing toggle ── */
+  if (cloud && 'sharing' in cloud) {
+    localStorage.setItem(SHARING_KEY, cloud.sharing ? '1' : '0');
+    updateShareToggleUI();
+  }
+
   return true;
 }
 
@@ -1836,6 +1842,7 @@ function isSharing() { return localStorage.getItem(SHARING_KEY) === '1'; }
 function toggleSharing() {
   const on = !isSharing();
   localStorage.setItem(SHARING_KEY, on ? '1' : '0');
+  if (db && currentUser) db.collection('users').doc(currentUser.uid).set({ sharing: on }, { merge: true }).catch(()=>{});
   updateShareToggleUI();
   if (on) updatePublicStudy();
   else if (db && currentUser) db.collection('public_study').doc(currentUser.uid).delete().catch(()=>{});
