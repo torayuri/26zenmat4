@@ -2177,7 +2177,39 @@ function applyTextColor(color) {
   if (wrapSavedRange('', `color:${color}`)) { saveDocContent(); hideSelToolbar(); }
 }
 function applyBgColor(color) {
-  if (wrapSavedRange('txt-hl', `background:${color};`)) { saveDocContent(); hideSelToolbar(); }
+  if (wrapSavedRange('txt-hl', `background:${color};`)) { flattenNestedTxtHl(); saveDocContent(); hideSelToolbar(); }
+}
+function flattenNestedTxtHl() {
+  const container = document.getElementById('doc-content');
+  let changed;
+  do {
+    changed = false;
+    for (const inner of [...container.querySelectorAll('.txt-hl')]) {
+      if (!inner.isConnected) continue;
+      const outer = inner.parentElement?.closest('.txt-hl');
+      if (!outer) continue;
+      const kids = [...outer.childNodes];
+      const idx = kids.indexOf(inner);
+      if (idx === -1) continue; // not direct child
+      const bg = outer.style.background;
+      const parent = outer.parentNode;
+      const before = kids.slice(0, idx), after = kids.slice(idx + 1);
+      if (before.length) {
+        const s = document.createElement('span');
+        s.className = 'txt-hl'; s.style.background = bg;
+        before.forEach(n => s.appendChild(n)); parent.insertBefore(s, outer);
+      }
+      parent.insertBefore(inner, outer);
+      if (after.length) {
+        const s = document.createElement('span');
+        s.className = 'txt-hl'; s.style.background = bg;
+        after.forEach(n => s.appendChild(n)); parent.insertBefore(s, outer);
+      }
+      parent.removeChild(outer);
+      changed = true;
+    }
+  } while (changed);
+  container.querySelectorAll('.txt-hl').forEach(s => { if (!s.textContent) s.remove(); });
 }
 function applyRedSheet(color) {
   const c = color || '#2d3748';
