@@ -1544,9 +1544,45 @@ function updateStampHomeSub() {
 /* ── Study Timer ── */
 const STUDY_LOG_KEY = 'tc-study-log';
 const STUDY_COLORS = ['#eebbcb','#f09199','#ffedab','#ffec47','#c7dc68','#7b8d42','#bce2e8','#89c3eb','#c0a2c7','#884898','#a58f86','#887f7a','#afafb0','#7d7d7d'];
+const TIMER_STATE_KEY = 'tc-timer-running';
 let timerInterval = null, timerStartTs = null, timerElapsed = 0, timerRunning = false;
 let timerColor = STUDY_COLORS[0];
 let graphMode = 'week', graphOffset = 0;
+
+function _loadTimerState() { try { return JSON.parse(localStorage.getItem(TIMER_STATE_KEY)); } catch { return null; } }
+function saveTimerState() {
+  const subject = document.getElementById('timer-subject')?.value || '';
+  localStorage.setItem(TIMER_STATE_KEY, JSON.stringify({
+    running: timerRunning, startTs: timerStartTs, elapsed: timerElapsed,
+    color: timerColor, subject
+  }));
+}
+function clearTimerState() { localStorage.removeItem(TIMER_STATE_KEY); }
+function restoreTimerState() {
+  const s = _loadTimerState();
+  if (!s) return;
+  timerElapsed = s.elapsed || 0;
+  timerColor   = s.color || STUDY_COLORS[0];
+  if (s.running && s.startTs) {
+    timerStartTs = s.startTs;
+    timerRunning = true;
+    clearInterval(timerInterval);
+    timerInterval = setInterval(updateTimerDisplay, 1000);
+  }
+}
+
+// バックグラウンド移行時に保存、復帰時にタイマー表示を更新
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    if (timerRunning) saveTimerState();
+  } else {
+    if (timerRunning) updateTimerDisplay();
+  }
+});
+window.addEventListener('beforeunload', () => { if (timerRunning || timerElapsed > 0) saveTimerState(); });
+
+// ページ読み込み時に復元
+restoreTimerState();
 
 function loadStudyLog() {
   try { return JSON.parse(localStorage.getItem(STUDY_LOG_KEY) || '[]'); } catch { return []; }
@@ -1576,6 +1612,21 @@ function renderTimerScreen() {
   renderColorPicker();
   renderStudyLogList();
   updateShareToggleUI();
+  // Restore button/UI state after background reload
+  const startBtn = document.getElementById('timer-start-btn');
+  const stopBtn  = document.getElementById('timer-stop-btn');
+  const screen   = document.getElementById('timer-screen');
+  const subEl    = document.getElementById('timer-subject');
+  const saved = _loadTimerState();
+  if (saved?.subject && subEl && !subEl.value) subEl.value = saved.subject;
+  if (timerRunning) {
+    if (startBtn) startBtn.textContent = '⏸ 一時停止';
+    if (stopBtn)  stopBtn.style.display = '';
+    if (screen)   screen.classList.add('timer-running');
+  } else if (timerElapsed > 0) {
+    if (startBtn) startBtn.textContent = '▶ 再開';
+    if (stopBtn)  stopBtn.style.display = '';
+  }
 }
 
 function updateTimerDisplay() {
@@ -1598,6 +1649,7 @@ function toggleTimer() {
     clearInterval(timerInterval); timerInterval = null;
     startBtn.textContent = '▶ 再開';
     screen.classList.remove('timer-running');
+    saveTimerState();
   } else {
     timerStartTs = Date.now();
     timerRunning = true;
@@ -1605,6 +1657,7 @@ function toggleTimer() {
     startBtn.textContent = '⏸ 一時停止';
     stopBtn.style.display = '';
     screen.classList.add('timer-running');
+    saveTimerState();
   }
 }
 
@@ -1627,6 +1680,7 @@ function finishTimer() {
   persistStudyLog(log);
 
   timerElapsed = 0; timerStartTs = null; timerColor = STUDY_COLORS[0];
+  clearTimerState();
   updateTimerDisplay();
   renderColorPicker();
   document.getElementById('timer-start-btn').textContent = '▶ 開始';
