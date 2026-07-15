@@ -309,8 +309,20 @@
     /* ── timer / study log ── */
     .timer-display-card{width:100%;background:var(--card-bg);border-radius:20px;padding:28px 20px;text-align:center;box-shadow:0 4px 16px rgba(0,0,0,.08);margin-bottom:20px;}
     .timer-subject-label{font-size:13px;font-weight:bold;color:var(--sub);margin-bottom:8px;text-align:left;}
-    .timer-digits{font-size:56px;font-weight:bold;color:var(--title);font-variant-numeric:tabular-nums;letter-spacing:2px;margin:16px 0 24px;font-family:monospace;}
+    .timer-digits{font-size:56px;font-weight:bold;color:var(--title);font-variant-numeric:tabular-nums;letter-spacing:2px;margin:16px 0 4px;font-family:monospace;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+    .timer-fs-hint-small{font-size:11px;color:var(--sub);margin-bottom:20px;}
     .timer-running .timer-digits{color:var(--p1);}
+    /* ── fullscreen timer ── */
+    .timer-fullscreen{position:fixed;inset:0;background:#111;z-index:900;display:none;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+    .timer-fullscreen.open{display:flex;}
+    .timer-fs-digits{font-size:min(22vw,110px);font-weight:bold;font-variant-numeric:tabular-nums;font-family:monospace;letter-spacing:4px;transition:color .3s;}
+    .timer-fs-subject{font-size:18px;color:rgba(255,255,255,.55);margin-top:20px;max-width:90vw;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .timer-fs-close{position:absolute;top:20px;right:20px;font-size:28px;color:rgba(255,255,255,.35);line-height:1;}
+    /* ── manual add ── */
+    .manual-add-card{width:100%;background:var(--card-bg);border-radius:16px;padding:20px;box-shadow:0 2px 12px rgba(0,0,0,.07);margin-bottom:16px;}
+    .manual-time-row{display:flex;align-items:center;gap:10px;margin-bottom:14px;justify-content:center;}
+    .manual-time-input{width:68px;padding:10px 6px;border:2px solid var(--border);border-radius:10px;font-size:24px;font-weight:bold;text-align:center;color:var(--title);background:var(--card-bg);font-family:monospace;-webkit-appearance:none;}
+    .manual-open-btn{width:100%;padding:13px;background:none;border:2px dashed var(--ul-border);border-radius:12px;color:var(--badge-fg);font-size:14px;font-weight:bold;cursor:pointer;margin-bottom:16px;-webkit-tap-highlight-color:transparent;}
     .timer-btns{display:flex;flex-direction:column;gap:10px;width:100%;}
     .timer-btn-start{width:100%;padding:16px;background:linear-gradient(135deg,var(--p1),var(--p2));color:white;border:none;border-radius:14px;font-size:16px;font-weight:bold;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:opacity .15s;}
     .timer-btn-start:active{opacity:.8;}
@@ -533,11 +545,28 @@
     <input type="text" class="f-input" id="timer-subject" placeholder="例: 英単語, 数学, リーディング..." style="margin-bottom:14px">
     <div class="color-picker-label">カラー</div>
     <div class="color-picker-row" id="timer-color-row"></div>
-    <div class="timer-digits" id="timer-digits">00:00:00</div>
+    <div class="timer-digits" id="timer-digits" onclick="openFullscreenTimer()">00:00:00</div>
+    <div class="timer-fs-hint-small">タップで全画面</div>
     <div class="timer-btns">
       <button class="timer-btn-start" id="timer-start-btn" onclick="toggleTimer()">▶ 開始</button>
       <button class="timer-btn-stop" id="timer-stop-btn" style="display:none" onclick="finishTimer()">■ 終了して保存</button>
     </div>
+  </div>
+  <button class="manual-open-btn" onclick="toggleManualAdd()">＋ 手動で学習時間を記録</button>
+  <div class="manual-add-card" id="manual-add-card" style="display:none">
+    <div style="font-size:14px;font-weight:bold;color:var(--title);margin-bottom:14px">手動記録</div>
+    <div class="timer-subject-label">勉強内容</div>
+    <input type="text" class="f-input" id="manual-subject" placeholder="例: 英単語, 数学..." style="margin-bottom:14px">
+    <div class="color-picker-label">カラー</div>
+    <div class="color-picker-row" id="manual-color-row" style="margin-bottom:14px"></div>
+    <div class="timer-subject-label">時間</div>
+    <div class="manual-time-row">
+      <input type="number" class="manual-time-input" id="manual-hours" min="0" max="23" value="0">
+      <span style="color:var(--sub);font-weight:bold;font-size:15px">時間</span>
+      <input type="number" class="manual-time-input" id="manual-minutes" min="0" max="59" value="0">
+      <span style="color:var(--sub);font-weight:bold;font-size:15px">分</span>
+    </div>
+    <button class="save-btn" onclick="saveManualEntry()">追加</button>
   </div>
   <div class="share-row">
     <div>
@@ -657,6 +686,13 @@
   <div class="panel-title">スタンプを選ぼう</div>
   <input type="file" id="stamp-img-input" accept="image/*" style="display:none">
   <div class="stamp-sel-grid" id="stamp-sel-grid"></div>
+</div>
+
+<!-- Fullscreen timer overlay -->
+<div class="timer-fullscreen" id="timer-fullscreen" onclick="closeFullscreenTimer()">
+  <div class="timer-fs-close" onclick="closeFullscreenTimer();event.stopPropagation()">✕</div>
+  <div class="timer-fs-digits" id="timer-fs-digits">00:00:00</div>
+  <div class="timer-fs-subject" id="timer-fs-subject"></div>
 </div>
 
 <!-- Global back button -->
@@ -1630,13 +1666,70 @@ function renderTimerScreen() {
 }
 
 function updateTimerDisplay() {
-  const el = document.getElementById('timer-digits');
-  if (!el) return;
   const total = timerRunning
     ? timerElapsed + Math.floor((Date.now() - timerStartTs) / 1000)
     : timerElapsed;
   const h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), s = total % 60;
-  el.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  const str = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  const el = document.getElementById('timer-digits');
+  if (el) el.textContent = str;
+  const fsEl = document.getElementById('timer-fs-digits');
+  if (fsEl) fsEl.textContent = str;
+}
+
+/* ── Fullscreen timer ── */
+let _wakeLock = null;
+async function openFullscreenTimer() {
+  const fs = document.getElementById('timer-fullscreen');
+  const fsEl = document.getElementById('timer-fs-digits');
+  const subEl = document.getElementById('timer-fs-subject');
+  const col = timerColor || '#ffffff';
+  if (fsEl) fsEl.style.color = col;
+  const subVal = document.getElementById('timer-subject')?.value.trim();
+  if (subEl) subEl.textContent = subVal || '';
+  updateTimerDisplay();
+  fs.classList.add('open');
+  try { if ('wakeLock' in navigator) _wakeLock = await navigator.wakeLock.request('screen'); } catch {}
+}
+function closeFullscreenTimer() {
+  document.getElementById('timer-fullscreen').classList.remove('open');
+  if (_wakeLock) { _wakeLock.release(); _wakeLock = null; }
+}
+
+/* ── Manual study entry ── */
+let manualColor = STUDY_COLORS[0];
+function toggleManualAdd() {
+  const card = document.getElementById('manual-add-card');
+  const open = card.style.display === 'none';
+  card.style.display = open ? 'block' : 'none';
+  if (open) renderManualColorPicker();
+}
+function renderManualColorPicker() {
+  const row = document.getElementById('manual-color-row');
+  if (!row) return;
+  row.innerHTML = STUDY_COLORS.map(c =>
+    `<button class="color-dot" style="background:${c};${manualColor===c?'border-color:var(--title);transform:scale(1.2)':''}" onclick="setManualColor('${c}')"></button>`
+  ).join('');
+}
+function setManualColor(c) { manualColor = c; renderManualColorPicker(); }
+function saveManualEntry() {
+  const subject = (document.getElementById('manual-subject').value.trim()) || '記録なし';
+  const hours   = Math.max(0, parseInt(document.getElementById('manual-hours').value)   || 0);
+  const minutes = Math.max(0, parseInt(document.getElementById('manual-minutes').value) || 0);
+  const total   = hours * 3600 + minutes * 60;
+  if (total < 60) { alert('1分以上の時間を入力してください'); return; }
+  const log = loadStudyLog();
+  log.unshift({ id: uid(), subject, color: manualColor, duration: total,
+    date: toDateStr(new Date()), startTime: new Date(Date.now() - total * 1000).toISOString() });
+  persistStudyLog(log);
+  renderStudyLogList();
+  updateTimerHomeSub();
+  document.getElementById('manual-subject').value = '';
+  document.getElementById('manual-hours').value   = '0';
+  document.getElementById('manual-minutes').value = '0';
+  document.getElementById('manual-add-card').style.display = 'none';
+  const durStr = (hours > 0 ? hours + '時間' : '') + (minutes > 0 ? minutes + '分' : '');
+  alert(`記録を追加しました！\n「${subject}」${durStr}`);
 }
 
 function toggleTimer() {
