@@ -1181,12 +1181,22 @@ function renderDetail() {
 
   const dlBtn = (!never && ngN > 0)
     ? `<button class="dl-btn" onclick="downloadNG()">⬇ 未暗記一覧をダウンロード (${ngN}語)</button>` : '';
+
+  const ngSet = never ? null : new Set(ng);
+  const allRows = deck.words.map((w, i) => {
+    const mark = never ? '' : (ngSet.has(i) ? '<span class="d-badge b-ng" style="margin-left:6px">未暗記</span>' : '<span class="d-badge b-ok" style="margin-left:6px">済</span>');
+    return `<div class="ng-row"><span class="ng-f">${esc(w.front)}${mark}</span><span class="ng-arr">→</span><span class="ng-b">${esc(w.back)}</span></div>`;
+  }).join('');
+  const allListHtml = `<div style="width:100%;margin-bottom:8px"><button class="ng-toggle" onclick="toggleAllList(this)"><span>全単語一覧 (${total}語)</span><span>▼</span></button><div class="ng-list" id="all-list">${allRows}</div></div>`;
+  const dlBtnAll = `<button class="dl-btn" onclick="downloadAll()">⬇ 全単語一覧をダウンロード (${total}語)</button>`;
+
   document.getElementById('det-body').innerHTML =
-    statsHtml + orderHtml + btnsHtml + ngListHtml + dlBtn +
+    statsHtml + orderHtml + btnsHtml + ngListHtml + dlBtn + allListHtml + dlBtnAll +
     `<button class="del-btn" onclick="delDeck()">このデッキを削除</button>`;
 }
 
 function toggleNg(btn) { const l = document.getElementById('ng-list'); btn.querySelector('span:last-child').textContent = l.classList.toggle('open') ? '▲' : '▼'; }
+function toggleAllList(btn) { const l = document.getElementById('all-list'); btn.querySelector('span:last-child').textContent = l.classList.toggle('open') ? '▲' : '▼'; }
 
 function editName() {
   const decks = loadDecks(), deck = decks.find(d => d.id === currentDeckId);
@@ -1410,6 +1420,20 @@ function downloadNG() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url; a.download = (deck.name || 'deck') + '_未暗記.csv'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function downloadAll() {
+  const deck = loadDecks().find(d => d.id === currentDeckId);
+  if (!deck || !deck.words.length) return;
+  const rows = deck.words.map(w =>
+    `"${w.front.replace(/"/g,'""')}","${w.back.replace(/"/g,'""')}"`
+  );
+  const csv = '表,裏\n' + rows.join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = (deck.name || 'deck') + '_全単語.csv'; a.click();
   URL.revokeObjectURL(url);
 }
 
